@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>仿写Map底层源码</title>
+</head>
+<body>
+	<script type="text/javascript">
+		/*
+			Map函数特点 
+			1：属性名不重复 
+			2：属性名类型可以是字符串 对象 Number null [] function(){} NaN
+			3：具有set get delete has clear方法
+			4：运用桶思想、链表思想和哈希算法
+	
+		*/
+
+		function myMap(){
+			//默认给桶的长度设为8
+			this.bucketLength = 8;
+			this.init();
+		}
+
+		myMap.prototype.init = function(){
+			//初始化桶的长度
+			this.bucket = new Array(this.bucketLength);
+			//初始化桶数组每一位的type和next属性
+			for(var i = 0; i < this.bucket.length; i++){
+				this.bucket[i] = {
+					type: 'bucket_' + i,
+					next: null
+				}
+			}
+		}
+		//取得自定义规则哈希值的函数
+		myMap.prototype.makeHash = function(key){
+			let hash = 0;
+			//判断属性类型,自定义哈希算法规则
+			if(typeof key !== 'string'){
+				//如果属性名是number类型(包括NaN)
+				if(typeof key == 'number') {
+					//Object.is()是ES6新方法,只要两个值完全相同就返回true(因为NaN不等于任何值包括它本身,只能用这个方法测)
+					hash = Object.is(key,NaN) ? 0 : key;
+				}else if (typeof key == 'object') {
+					hash = 1;
+				}else if (typeof key == 'boolean') {
+					hash = Number(key);
+				}else {
+					hash = 2;
+				}
+			}else{
+				//如果属性名是字符串
+				for(let i = 0; i < 3; i++){
+					//自定义哈希规则：取字符串前三位的ASCII码相加对8取余,如果前三位中有些位置不存在就加0,存在就加它的ASCII码 如'ab'
+					hash += key[i] ? key[i].charCodeAt(0) : 0;
+				}
+			}
+			//对8取余,返回0-7之间的数字
+			return hash % 8;
+		}
+
+		//设置属性和属性值
+		myMap.prototype.set = function (key,value){
+			let hash = this.makeHash(key); //取属性名所对应哈希值
+			let oTempBucket = this.bucket[hash]; //取该位置所对应属性值
+
+			while(oTempBucket.next) {
+				//如果next指向的对象的key属性所对应的属性值与我们要设置的属性名一致,则给这个指向的对象的value设为我们传入的value(如果后面设置了相同的属性名,那么这个地方的value就会被覆盖)
+				if(oTempBucket.next.key == key) {
+					oTempBucket.next.value = value;
+					return;
+				}else{
+					oTempBucket = oTempBucket.next;
+				}
+			};
+
+			//当上面while没进去或者退出循环,说明该位置所对应属性值的next为空,直接给该位置next赋值
+			oTempBucket.next = {
+				key: key,
+				value: value,
+				next: null
+			}
+		}
+
+		//获取属性值
+		myMap.prototype.get = function(key) {
+			let hash = this.makeHash(key); //取属性名所对应哈希值
+			let oTempBucket = this.bucket[hash]; //取该位置所对应属性值
+
+			while(oTempBucket) {
+				if(oTempBucket.key == key) {
+					return oTempBucket.value; //最开始的这一步判断不会走,因为我们前面没有直接给桶的第一层数组设key值
+				}else{
+					oTempBucket = oTempBucket.next; 
+				}
+			}
+
+			//如果找不到这个属性返回undefined
+			return undefined;
+		}
+
+		//删除属性
+		myMap.prototype.delete = function(key) {
+			let hash = this.makeHash(key); //取属性名所对应哈希值
+			let oTempBucket = this.bucket[hash]; //取该位置所对应属性值
+
+			while(oTempBucket.next) {
+				if(oTempBucket.next.key == key) {
+					//删除某个属性,属性里的next指向的后面的属性也会一起被删除,直接将当前next指向改为要删除属性里的next的指向(即改为next指向的next指向,直接把原来的next指向覆盖掉就可以了)
+					oTempBucket.next = oTempBucket.next.next;
+					return true;
+				}else{
+					oTempBucket = oTempBucket.next;
+				}
+			}
+		}
+
+		//判断是否有某个属性
+		myMap.prototype.has = function(key) {
+			let hash = this.makeHash(key); //取属性名所对应哈希值
+			let oTempBucket = this.bucket[hash]; //取该位置所对应属性值
+
+			while(oTempBucket) {
+				if(oTempBucket.next && oTempBucket.next.key == key){
+		            return true;
+		        }else {
+		            oTempBucket = oTempBucket.next;
+		        }
+			}
+
+			//没有找到返回false
+			return false;
+		}
+
+		//清空属性
+		myMap.prototype.clear = function (key) {
+			//重新初始化桶
+		   this.init();
+		};
+
+
+		let oMp = new myMap();
+
+		let obj1 = {
+		    name: 'web'
+		}
+		oMp.set('name1', 'web1');
+		oMp.set('name2', 'web2');
+		oMp.set(obj1, 'web3');
+		// oMp.set(obj1, 'web4');
+		oMp.set(function () {}, true);
+	</script>
+</body>
+</html>
